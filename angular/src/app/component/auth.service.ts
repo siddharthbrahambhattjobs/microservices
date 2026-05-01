@@ -10,7 +10,7 @@ declare var google: any;
 })
 export class AuthService {
   
-  private readonly GOOGLE_CLIENT_ID = '674419636360-losvfqen7mvsk4mrdauviu1vn8ku2m44.apps.googleusercontent.com';
+  private readonly GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
   private jwtTokenSubject = new BehaviorSubject<string | null>(null);
   public jwtToken$ = this.jwtTokenSubject.asObservable();
   
