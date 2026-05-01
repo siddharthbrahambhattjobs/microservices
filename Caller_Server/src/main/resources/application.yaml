@@ -1,0 +1,85 @@
+server:
+  port: 8153
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+
+spring:
+  application:
+    name: caller-server-svc
+  threads:
+    virtual:
+      enabled: true
+
+  # --- REDIS CONFIGURATION ---
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  # --- KAFKA CONFIGURATION (SAGA CHOREOGRAPHY) ---
+  kafka:
+    bootstrap-servers: ${KAFKA_HOST:kafka-broker}:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: caller-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring:
+          json:
+            trusted:
+              packages: in.co.dto
+
+# --- RESILIENCE4J CONFIGURATION ---
+resilience4j:
+  circuitbreaker:
+    instances:
+      CircuitgetStudent:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50 
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        recordExceptions:
+          - java.lang.Exception
+      
+      CreateStudentFallBack:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        recordExceptions:
+          - java.lang.Exception
+
+  retry:
+    instances:
+      getStudentRetryFallBack:
+        maxAttempts: 3
+        waitDuration: 2s
+        retryExceptions:
+          - java.io.IOException
+          - java.net.ConnectException
+          - feign.RetryableException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+
+# --- LOGGING CONFIGURATION ---
+logging:
+  level:
+    in:
+      co: INFO
+    org:
+      springframework:
+        kafka: WARN

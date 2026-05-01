@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: response-service-app
+  namespace: microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: response-service-app
+  template:
+    metadata:
+      labels:
+        app: response-service-app
+        version: v1
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8154"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "5432"
+    spec:
+      initContainers:
+      - name: wait-for-db
+        image: postgres:17-alpine
+        command:
+          - sh
+          - -c
+          - |
+            until pg_isready -h postgres-headless -p 5432; do
+              echo "Waiting for database..."
+              sleep 3
+            done
+      containers:
+      - name: response-service-app
+        image: sidbhatt94/response-server
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8154
+          initialDelaySeconds: 5
+          periodSeconds: 15
+          failureThreshold: 3
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8154
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 5
+          timeoutSeconds: 5
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8154
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 15
+          timeoutSeconds: 5
+        ports:
+        - containerPort: 8154
+        envFrom:
+        - configMapRef:
+            name: client-cm
+        - configMapRef:
+            name: db-cm
+        resources:
+          requests:
+            memory: "700Mi"
+            cpu: "500m"
+          limits:
+            memory: "800Mi"
+            cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: response-server-svc
+  namespace: microservices
+spec:
+  selector:
+    app: response-service-app
+  ports:
+  - name: http
+    port: 8154
+    targetPort: 8154

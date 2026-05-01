@@ -1,0 +1,201 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: microservices
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        url: http://prometheus.microservices.svc.cluster.local:9090
+        isDefault: true
+
+      - name: Elasticsearch Logs
+        type: elasticsearch
+        uid: elasticsearch-logs
+        url: http://elasticsearch-client.microservices.svc.cluster.local:9200
+        database: "microservices-*"
+        jsonData:
+          timeField: "@timestamp"
+          index: "microservices-*"
+          esVersion: "8.0.0"
+          maxConcurrentShardRequests: 5
+          logMessageField: "message"
+          logLevelField: "level"
+          includeFrozen: false
+
+  alerting.yaml: |
+    apiVersion: 1
+
+    contactPoints:
+      - orgId: 1
+        name: admin-email
+        receivers:
+          - uid: email-receiver-1
+            type: email
+            settings:
+              addresses: siddharthbrahambhatt66@gmail.com
+
+    policies:
+      - orgId: 1
+        receiver: admin-email
+        group_by: ['alertname', 'severity']
+        group_wait: "30s"
+        group_interval: "5m"
+        repeat_interval: "4h"
+
+    groups:
+      - orgId: 1
+        name: "System Monitoring"
+        folder: "Infrastructure Alerts"
+        interval: "1m"
+        rules:
+          - uid: cpu-alert-001
+            title: "CPU Usage Exceeds 5%"
+            condition: B
+            data:
+              - refId: A
+                datasourceUid: prometheus
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                model:
+                  expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params: [5]
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params: [A]
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                  expression: A
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+                  refId: B
+                  type: classic_conditions
+            for: "5m"
+            noDataState: NoData
+            execErrState: Error
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU Usage Detected"
+              description: "CPU usage has been above 5% for the last 5 minutes."
+
+          - uid: service-down-001
+            title: "Microservice is Down"
+            condition: B
+            data:
+              - refId: A
+                datasourceUid: prometheus
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                model:
+                  expr: up{namespace="microservices"} == 0
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params: [0]
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params: [A]
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+                  expression: A
+                  refId: B
+                  type: classic_conditions
+            for: "2m"
+            labels:
+              severity: critical
+            annotations:
+              summary: "A microservice in the namespace has crashed or is unreachable."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: microservices
+spec:
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:9.5.21
+        env:
+        - name: GF_SMTP_ENABLED
+          value: "true"
+        - name: GF_SMTP_HOST
+          value: "smtp.gmail.com:587"
+        - name: GF_SMTP_USER
+          value: "siddharthbrahambhatt66@gmail.com"
+        - name: GF_SMTP_PASSWORD
+          value: "xezvfcrcexsrryri"
+        - name: GF_SMTP_FROM_ADDRESS
+          value: "siddharthbrahambhatt66@gmail.com"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: provisioning
+          mountPath: /etc/grafana/provisioning/datasources/datasource.yaml
+          subPath: datasource.yaml
+        - name: provisioning
+          mountPath: /etc/grafana/provisioning/alerting/alerting.yaml
+          subPath: alerting.yaml
+      volumes:
+      - name: provisioning
+        configMap:
+          name: grafana-provisioning
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: microservices
+spec:
+  selector:
+    app: grafana
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000

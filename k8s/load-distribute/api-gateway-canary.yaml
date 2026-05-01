@@ -1,0 +1,36 @@
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: api-gateway
+  namespace: microservices
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  service:
+    port: 8151
+    targetPort: 8151
+    name: apigateway-server-svc
+  analysis:
+    interval: 1m
+    threshold: 5
+    maxWeight: 50
+    stepWeight: 10
+    metrics:
+    - name: request-success-rate
+      thresholdRange:
+        min: 99
+      interval: 1m
+    - name: request-duration
+      thresholdRange:
+        max: 500
+      interval: 1m
+    webhooks:
+    - name: acceptance-test
+      type: pre-rollout
+      url: http://flagger-loadtester.microservices/
+      timeout: 30s
+      metadata:
+        type: bash
+        cmd: "curl -s http://apigateway-server-svc-canary.microservices:8151/actuator/health | grep UP"

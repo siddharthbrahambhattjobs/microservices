@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+
+      <!-- Field names match exactly what the Logstash filter promotes:
+             @timestamp  → consumed by the date filter (ISO8601)
+             message     → logMessageField in Grafana datasource
+             logger_name → promoted by Logstash STEP 3e
+             level       → logLevelField in Grafana datasource -->
+      <fieldNames>
+        <timestamp>@timestamp</timestamp>
+        <message>message</message>
+        <logger>logger_name</logger>
+        <level>level</level>
+      </fieldNames>
+
+      <!-- "app_name" is promoted by Logstash STEP 3d and stored in
+           Elasticsearch, allowing Grafana to filter logs by service.
+           This must be different from caller-service so you can tell
+           them apart in the log explorer. -->
+      <customFields>{"app_name":"response-microservice"}</customFields>
+
+      <!-- MDC fields (traceId, spanId) are included automatically.
+           No <includeMdc> element needed — it is not a valid element
+           and causes Logback startup warnings if present. -->
+
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+
+  <!-- Suppress noisy Kafka AbstractConfig dumps (large tab-indented blocks
+       that caused _jsonparsefailure in Logstash). -->
+  <logger name="org.apache.kafka.common.config.AbstractConfig" level="WARN"/>
+
+  <!-- Suppress Hibernate multi-line DB info blocks. -->
+  <logger name="org.hibernate.orm.connections.pooling" level="WARN"/>
+
+  <!-- Suppress the open-in-view deprecation warning that appeared in
+       your response-service logs:
+       "spring.jpa.open-in-view is enabled by default..." -->
+  <logger name="org.springframework.boot.jpa.autoconfigure.JpaBaseConfiguration" level="WARN"/>
+
+</configuration>

@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: microservices
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+    spec:
+      containers:
+      - name: redis
+        image: redis
+        ports:
+        - containerPort: 6379
+        command:
+          - "redis-server"
+        args:
+        - "--protected-mode"
+        - "no"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-svc
+  namespace: microservices
+spec:
+  selector:
+    app: redis
+  ports:
+  - name: tcp
+    port: 6379
+    targetPort: 6379

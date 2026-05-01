@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caller-service-app
+  namespace: microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: caller-service-app
+  template:
+    metadata:
+      labels:
+        app: caller-service-app
+        version: v1
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8153"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "5432"
+    spec:
+      containers:
+      - name: caller-service-app
+        image: sidbhatt94/caller-server
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8153
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8153
+          initialDelaySeconds: 5
+          periodSeconds: 15
+          failureThreshold: 3
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8153
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 5
+          timeoutSeconds: 5
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8153
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 15
+          timeoutSeconds: 5
+        envFrom:
+        - configMapRef:
+            name: client-cm
+        - configMapRef:
+            name: db-cm
+        resources:
+          requests:
+            memory: "700Mi"
+            cpu: "500m"
+          limits:
+            memory: "800Mi"
+            cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: caller-server-svc
+  namespace: microservices
+spec:
+  selector:
+    app: caller-service-app
+  ports:
+  - name: http
+    port: 8153
+    targetPort: 8153

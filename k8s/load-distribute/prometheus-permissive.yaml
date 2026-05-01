@@ -1,0 +1,11 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: prometheus-permissive
+  namespace: microservices
+spec:
+  selector:
+    matchLabels:
+      app: prometheus
+  mtls:
+    mode: PERMISSIVE

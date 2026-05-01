@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: client-cm
+  namespace: microservices
+data:
+  APIGATEWAY_SERVER_SVC: "apigateway-server-svc.microservices.svc.cluster.local"
+  CALLER_SERVER_SVC: "caller-server-svc.microservices.svc.cluster.local"
+  RESPONSE_SERVER_SVC: "response-server-svc.microservices.svc.cluster.local"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-cm
+  namespace: microservices
+data:
+  KAFKA_HOST: "kafka-broker.microservices.svc.cluster.local"
+  REDIS_HOST: "redis-svc.microservices.svc.cluster.local"
+  REDIS_PORT: "6379"
+  DB_HOST: "postgres-headless.microservices.svc.cluster.local"
+  POSTGRES_PASSWORD: "root"

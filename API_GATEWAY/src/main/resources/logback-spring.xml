@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <fieldNames>
+        <timestamp>@timestamp</timestamp>
+        <message>message</message>
+        <logger>logger_name</logger>
+        <level>level</level>
+      </fieldNames>
+      <customFields>{"app_name":"api-gateway-microservice"}</customFields>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+
+  <!-- api-gateway does not use Kafka producers/consumers directly,
+       but the Spring Kafka client is on the classpath (transitively).
+       Keeping this suppresses any config dump noise if it initialises. -->
+  <logger name="org.apache.kafka.common.config.AbstractConfig" level="WARN"/>
+
+  <!-- Suppress Hibernate multi-line DB info blocks. -->
+  <logger name="org.hibernate.orm.connections.pooling" level="WARN"/>
+
+  <!-- Suppress Spring Security verbose auth debug logs. -->
+  <logger name="org.springframework.security" level="WARN"/>
+
+</configuration>

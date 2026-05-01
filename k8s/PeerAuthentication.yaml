@@ -1,0 +1,9 @@
+# mtls-policy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-mtls
+  namespace: microservices
+spec:
+  mtls:
+    mode: STRICT

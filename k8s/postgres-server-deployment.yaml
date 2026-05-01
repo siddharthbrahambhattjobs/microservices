@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+  namespace: microservices
+type: Opaque
+data:
+  POSTGRES_USER: cG9zdGdyZXM=     # postgres
+  POSTGRES_PASSWORD: cm9vdA==     # root
+  POSTGRES_DB: cG9zdGdyZXNqcGE=  # postgresjpa
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-db-script
+  namespace: microservices
+data:
+  init-db.sql: |
+    -- The POSTGRES_DB env var already creates this database on first start.
+    -- This statement is a safety net; IF NOT EXISTS makes it a no-op if the
+    -- database already exists.
+    CREATE DATABASE IF NOT EXISTS postgresjpa;
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+  namespace: microservices
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: '/tmp/data/postgres'
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: microservices
+spec:
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: microservices
+spec:
+  serviceName: postgres-headless
+  selector:
+    matchLabels:
+      app: postgres
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+        traffic.sidecar.istio.io/excludeInboundPorts: "5432"
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:17-alpine
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        envFrom:
+        - secretRef:
+            name: postgres-credentials
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: init-script
+          mountPath: /docker-entrypoint-initdb.d
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+          subPath: postgres
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: init-script
+          configMap:
+            name: postgres-db-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+  namespace: microservices
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+  - name: tcp
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  type: ClusterIP

@@ -1,0 +1,39 @@
+    <div class="page">
+      <div class="search-card">
+        <h1>Local Search in Angular</h1>
+        <p class="subtitle">
+          Search is performed on static data available in the Angular app.
+        </p>
+
+        <input
+          type="text"
+          [formControl]="searchControl"
+          placeholder="Search products..."
+          class="search-input"
+        />
+
+        <div class="info-row">
+          <span *ngIf="searchText.length > 0">Searching for: "{{ searchText }}"</span>
+        </div>
+
+        <div *ngIf="showInitialMessage" class="message">
+          Start typing to search local data.
+        </div>
+
+        <div *ngIf="showMinLengthMessage" class="message">
+          Please enter at least 3 characters.
+        </div>
+
+        <div *ngIf="!showInitialMessage && !showMinLengthMessage && filteredProducts.length === 0" class="message">
+          No matching records found.
+        </div>
+
+        <ul class="results-list" *ngIf="filteredProducts.length > 0">
+          <li *ngFor="let product of filteredProducts" class="result-item">
+            <div class="name">{{ product.name }}</div>
+            <div class="category">{{ product.category }}</div>
+            <div class="desc">{{ product.description }}</div>
+          </li>
+        </ul>
+      </div>
+    </div>

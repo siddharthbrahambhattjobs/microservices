@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring accessors="true" comment="Delete element from project &apos;angular&apos;&#x0D;&#x0A;- Original project: &apos;angular&apos;&#x0D;&#x0A;- Original element: &apos;call-to-api-gateway.spec.ts&apos;" description="Delete element" element1="src/app/component/call-to-api-gateway.spec.ts" elements="0" flags="589830" id="org.eclipse.jdt.ui.delete" resources="1" stamp="1774813102520" subPackages="false" version="1.0"/>
+</session>

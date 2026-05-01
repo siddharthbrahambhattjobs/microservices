@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+    spec:
+      containers:
+      - name: logstash
+        image: docker.elastic.co/logstash/logstash:8.12.0
+        ports:
+          - containerPort: 5044
+          - containerPort: 9600
+        env:
+          - name: XPACK_MONITORING_ELASTICSEARCH_HOSTS
+            value: "http://elasticsearch-client.microservices.svc.cluster.local:9200"
+          - name: XPACK_MONITORING_ENABLED
+            value: "true"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+          - name: config-volume
+            mountPath: /usr/share/logstash/pipeline/
+      volumes:
+        - name: config-volume
+          configMap:
+            name: logstash-config
+            items:
+              - key: logstash.conf
+                path: logstash.conf

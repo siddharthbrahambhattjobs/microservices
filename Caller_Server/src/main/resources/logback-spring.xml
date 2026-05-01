@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+
+      <!-- Map Logback's internal field names to the names your Logstash
+           filter promotes to top level. These must match exactly:
+             @timestamp  → [parsed][@timestamp] (ISO8601, consumed by date filter)
+             message     → [parsed][message]    (logMessageField in Grafana)
+             logger_name → [parsed][logger_name] (promoted by STEP 3e)
+             level       → [parsed][level]       (logLevelField in Grafana)  -->
+      <fieldNames>
+        <timestamp>@timestamp</timestamp>
+        <message>message</message>
+        <logger>logger_name</logger>
+        <level>level</level>
+      </fieldNames>
+
+      <!-- Adds "app_name" to every log line so Logstash STEP 3d can promote it.
+           This is what populates the app_name field in Elasticsearch, letting
+           you filter logs by service in Grafana. -->
+      <customFields>{"app_name":"caller-microservice"}</customFields>
+
+      <!-- FIX: Removed <includeMdc>true</includeMdc>.
+           This is NOT a valid configuration element for LogstashEncoder.
+           MDC fields (traceId, spanId from Micrometer/Sleuth) are included
+           in the JSON output automatically by LogstashEncoder by default —
+           no explicit configuration is needed. The invalid tag was causing
+           a Logback startup warning:
+             "No such property [includeMdc] in class LogstashEncoder"  -->
+
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+
+  <!-- Suppress noisy Kafka config dump logs (large tab-indented config blocks)
+       that were the root cause of _jsonparsefailure in Logstash even after
+       the ruby sanitizer was added. Setting these to WARN means only
+       genuine Kafka errors appear in the log stream. -->
+  <logger name="org.apache.kafka.common.config.AbstractConfig" level="WARN"/>
+
+  <!-- Suppress Hibernate multi-line DB info blocks that also caused
+       _jsonparsefailure (the message contained literal newlines). -->
+  <logger name="org.hibernate.orm.connections.pooling" level="WARN"/>
+
+</configuration>

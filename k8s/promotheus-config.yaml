@@ -1,0 +1,86 @@
+# promotheus-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: microservices
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+
+    scrape_configs:
+      - job_name: 'istio-mesh'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["microservices"]
+        relabel_configs:
+          # Only scrape pods that have an istio-proxy sidecar
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            action: keep
+            regex: istio-proxy
+          # Scrape the Envoy stats endpoint on port 15090
+          - source_labels: [__address__]
+            action: replace
+            regex: ([^:]+):.*
+            replacement: $1:15090
+            target_label: __address__
+          - action: replace
+            target_label: __metrics_path__
+            replacement: /stats/prometheus
+          # Carry over useful labels
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod_name
+            
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+            # Only discover pods in the microservices namespace
+            namespaces:
+              names: ["microservices"]
+
+        relabel_configs:
+          # Rule 1: Only scrape pods that have prometheus.io/scrape: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+
+          # FIX Rule 2: Use the prometheus.io/path annotation as the metrics path.
+          # Your services expose metrics at /actuator/prometheus, NOT at the
+          # default /metrics. Without this rule, Prometheus always requests
+          # /metrics and gets a 404, so zero metrics are ever collected.
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+
+          # FIX Rule 3: Replace the scrape port with the prometheus.io/port annotation.
+          # Your services run on custom ports (8151, 8153, 8154). Without this
+          # rule, Prometheus scrapes the first containerPort declared in the
+          # pod spec, which may be wrong, or falls back to the pod IP with no
+          # port at all. This rule rewrites the address to pod-ip:annotated-port.
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+
+          # Rule 4: Carry over useful Kubernetes labels into Prometheus metrics
+          # so dashboards can filter by namespace, pod name, and app label.
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name

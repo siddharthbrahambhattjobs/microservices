@@ -1,0 +1,12 @@
+    <div class="login-container">
+      <h2>Welcome to the Application</h2>
+      <p>Please sign in to continue.</p>
+      
+      <div id="google-btn"></div>
+      
+      <div *ngIf="authService.jwtToken$ | async as token" class="token-display">
+        <h3>Login Successful!</h3>
+        <p>Your JWT has been generated and is ready to be sent to the API Gateway.</p>
+        <textarea readonly rows="5" cols="50">{{ token }}</textarea>
+      </div>
+    </div>

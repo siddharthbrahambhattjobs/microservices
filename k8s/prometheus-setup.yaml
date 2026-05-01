@@ -1,0 +1,86 @@
+# prometheus-setup.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: microservices
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "nodes/proxy", "services", "endpoints", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions", "apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: microservices
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+      # FIX: Added Istio proxy hold annotation.
+      # Prometheus makes outbound HTTP scrape connections to every annotated
+      # pod on startup. With STRICT mTLS these connections must go through the
+      # Istio sidecar. Without this annotation, Prometheus starts scraping
+      # before Envoy is ready and every initial scrape returns a connection
+      # error, leaving the first scrape cycle with no data.
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        args:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus/"
+        ports:
+          - containerPort: 9090
+        volumeMounts:
+          - name: config-volume
+            mountPath: /etc/prometheus/
+      volumes:
+        - name: config-volume
+          configMap:
+            name: prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: microservices
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090

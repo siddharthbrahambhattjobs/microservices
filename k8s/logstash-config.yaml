@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: microservices
+data:
+  logstash.conf: |
+    input {
+      kafka {
+        bootstrap_servers => "kafka-broker.microservices.svc.cluster.local:9092"
+        topics => ["microservice-logs"]
+        group_id => "logstash-consumer-group"
+        codec => "json"
+        auto_offset_reset => "earliest"
+      }
+    }
+
+    filter {
+
+      # STEP 1: Clean up the spurious _timestampparsefailure tag and _@timestamp
+      # field that are injected by the Kafka input codec.
+      #
+      # Fluent Bit wraps each log line in an outer JSON envelope:
+      #   {"@timestamp": 1774185665.876218, "log": "{...inner JSON...}", ...}
+      #
+      # When Logstash's codec => "json" parses this outer envelope it finds
+      # @timestamp is a Unix epoch FLOAT, not ISO8601. The codec fails to parse
+      # it as a timestamp, stamps the event with _timestampparsefailure, and
+      # stores the raw float in _@timestamp. Both fields appear in Elasticsearch
+      # even though the final @timestamp is correct (it gets overwritten in
+      # STEP 4a from the inner parsed ISO8601 value).
+      #
+      # Removing them here keeps Elasticsearch documents clean.
+      mutate {
+        remove_tag   => ["_timestampparsefailure"]
+        remove_field => ["_@timestamp"]
+      }
+
+      # STEP 2: Sanitize the raw log string BEFORE attempting JSON parse.
+      # Removes literal newlines/tabs inside the "log" field value that would
+      # break the JSON parser (Hibernate DB info blocks, Kafka config dumps).
+      ruby {
+        code => '
+          raw = event.get("log")
+          if raw
+            event.set("log", raw.gsub(/[\r\n\t]/, " ").strip)
+          end
+        '
+      }
+
+      # STEP 3: Parse the sanitized inner JSON log line.
+      # skip_on_invalid_json: silently skip unparseable lines (JVM banner, etc.)
+      # tag_on_failure []: suppresses _jsonparsefailure on remaining failures.
+      json {
+        source => "log"
+        target => "parsed"
+        skip_on_invalid_json => true
+        tag_on_failure => []
+      }
+
+      # STEP 4: Only promote fields if the inner JSON actually parsed.
+      if [parsed] {
+
+        # STEP 4a: Normalize @timestamp across both service log formats:
+        #   - caller-service / response-service → "@timestamp" ISO8601
+        #     e.g. {"@timestamp":"2026-03-22T13:21:05.875684024Z", ...}
+        #   - api-gateway → "timestamp" space-separated
+        #     e.g. {"timestamp":"2026-03-22 11:20:56", ...}
+        # tag_on_failure [] suppresses a second _timestampparsefailure in the
+        # unlikely event the inner timestamp value is also malformed.
+        if [parsed][@timestamp] {
+          date {
+            match => ["[parsed][@timestamp]", "ISO8601"]
+            target => "@timestamp"
+            tag_on_failure => []
+          }
+        } else if [parsed][timestamp] {
+          date {
+            match => ["[parsed][timestamp]", "yyyy-MM-dd HH:mm:ss"]
+            target => "@timestamp"
+            tag_on_failure => []
+          }
+        }
+
+        # STEP 4b: Promote "message" — must match logMessageField: "message"
+        # configured in the Grafana Elasticsearch datasource.
+        if [parsed][message] {
+          mutate {
+            add_field => { "message" => "%{[parsed][message]}" }
+          }
+        }
+
+        # STEP 4c: Promote log level — matches logLevelField: "level" in Grafana.
+        if [parsed][level] {
+          mutate {
+            add_field => { "level" => "%{[parsed][level]}" }
+          }
+        }
+
+        # STEP 4d: Promote app_name (each field is individually guarded so a
+        # missing field never writes the literal "%{[parsed][app_name]}" string).
+        if [parsed][app_name] {
+          mutate {
+            add_field => { "app_name" => "%{[parsed][app_name]}" }
+          }
+        }
+
+        # STEP 4e: Promote logger name — two field names in use across services:
+        #   caller-service / response-service  → "logger_name"
+        #   api-gateway (plain Spring Boot JSON) → "logger"
+        if [parsed][logger_name] {
+          mutate {
+            add_field => { "logger_name" => "%{[parsed][logger_name]}" }
+          }
+        } else if [parsed][logger] {
+          mutate {
+            add_field => { "logger_name" => "%{[parsed][logger]}" }
+          }
+        }
+
+      }
+
+      # STEP 5: Remove raw/intermediate fields before writing to Elasticsearch.
+      # "log"        → raw sanitized string (already parsed into "parsed")
+      # "parsed"     → intermediate nested object (fields promoted above)
+      # "stream"     → stdout/stderr label from Docker (not useful)
+      # "time"       → Fluent Bit Docker parser timestamp (replaced by @timestamp)
+      mutate {
+        remove_field => ["log", "parsed", "stream", "time"]
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts => ["http://elasticsearch-client.microservices.svc.cluster.local:9200"]
+        index => "microservices-%{+YYYY.MM.dd}"
+      }
+    }

@@ -1,0 +1,13 @@
+.login-container { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    margin-top: 50px; 
+}
+#google-btn { 
+    margin: 20px 0; 
+}
+.token-display { 
+    margin-top: 20px; 
+    text-align: center; 
+}

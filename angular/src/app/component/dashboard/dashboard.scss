@@ -1,0 +1,37 @@
+/* Existing Dashboard Styles */
+.dashboard-container { padding: 20px; font-family: sans-serif; }
+.actions { display: flex; gap: 10px; margin-bottom: 20px; }
+button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
+.btn-primary { background-color: #0056b3; color: white; }
+.btn-danger { background-color: #dc3545; color: white; }
+.response-box { padding: 15px; border-radius: 5px; margin-top: 20px; }
+.success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+.error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+pre { white-space: pre-wrap; word-wrap: break-word; }
+
+/* New styles for the input form */
+.form-container {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+  border: 1px solid #dee2e6;
+
+  h3 { margin-top: 0; font-size: 1.1em; color: #333; }
+}
+
+.form-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+
+  input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    flex: 1;
+  }
+}
+
+.btn-success { background-color: #28a745; color: white; }
+.btn-success:hover { background-color: #218838; }

@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: microservices
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     info
+        Daemon        off
+        Parsers_File  parsers.conf
+        storage.path  /var/log/flb-storage/
+        storage.sync  normal
+        storage.checksum off
+        storage.backlog.mem_limit 5M
+
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        Path              /var/log/containers/*caller-service-app*.log,/var/log/containers/*response-service*.log,/var/log/containers/*api-gateway*.log
+        Exclude_Path      /var/log/containers/*istio-proxy*.log,/var/log/containers/*istio-init*.log,/var/log/containers/*wait-for-db*.log
+        Parser            docker
+        DB                /var/log/flb_kube.db
+        Mem_Buf_Limit     50MB
+        Skip_Long_Lines   On
+        Refresh_Interval  5
+        storage.type      filesystem
+
+    [OUTPUT]
+        Name           kafka
+        Match          *
+        Brokers        kafka-broker.microservices.svc.cluster.local:9092
+        Topics         microservice-logs
+        Format         json
+        Retry_Limit    false
+        rdkafka.socket.keepalive.enable  true
+        rdkafka.security.protocol        PLAINTEXT
+
+  parsers.conf: |
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: microservices
+spec:
+  selector:
+    matchLabels:
+      name: fluent-bit
+  template:
+    metadata:
+      labels:
+        name: fluent-bit
+        sidecar.istio.io/inject: "true"
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+    spec:
+      serviceAccountName: fluent-bit
+      containers:
+      - name: fluent-bit
+        image: fluent/fluent-bit:2.1
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: config
+          mountPath: /fluent-bit/etc/
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: config
+        configMap:
+          name: fluent-bit-config
