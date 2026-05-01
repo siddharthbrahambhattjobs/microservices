@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<session version="1.0">
-<refactoring comment="Rename resource &apos;k8s/cloud-gateway-deployment.yaml&apos; to &apos;api-gateway-deployment.yaml&apos;" description="Rename resource &apos;cloud-gateway-deployment.yaml&apos;" flags="7" id="org.eclipse.ltk.core.refactoring.rename.resource" input="cloud-gateway-deployment.yaml" name="api-gateway-deployment.yaml" stamp="1770577475678" updateReferences="true"/>
-</session>

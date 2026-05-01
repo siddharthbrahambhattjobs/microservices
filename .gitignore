@@ -40,3 +40,6 @@ Thumbs.db
 # --- Environment & Secrets ---
 .env
 .env.local
+
+# --- Eclipse Workspace ---
+.metadata/
