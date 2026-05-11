@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -31,6 +32,8 @@ import io.github.resilience4j.retry.annotation.Retry;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+//CallerController.java — Full corrected constructor
+
 @RestController
 @RequestMapping("/caller")
 public class CallerController {
@@ -40,18 +43,22 @@ public class CallerController {
 	private final KafkaTemplate<String, StudentEvent> kafkaTemplate;
 	private final WebClient webClient;
 	private final CallerIdempotencyService idempotencyService;
-
 	private static final Logger log = LoggerFactory.getLogger(CallerController.class);
 
 	public CallerController(CallerClient client, RedisService redisService,
-			KafkaTemplate<String, StudentEvent> kafkaTemplate, CallerIdempotencyService idempotencyService) {
+			KafkaTemplate<String, StudentEvent> kafkaTemplate, CallerIdempotencyService idempotencyService,
+			WebClient.Builder webClientBuilder,
+			// Reads from application-local.yaml: response.service.url
+			@Value("${response.service.url:http://localhost:8154/response}") String responseServiceUrl) {
+
 		this.client = client;
 		this.redisService = redisService;
 		this.kafkaTemplate = kafkaTemplate;
-		// Initialize WebClient targeting the response service
-		this.webClient = WebClient.builder().baseUrl("http://${RESPONSE_SERVER_SVC:localhost}:8154/response").build();
 		this.idempotencyService = idempotencyService;
+		// NOW correctly resolved from properties
+		this.webClient = webClientBuilder.baseUrl(responseServiceUrl).build();
 	}
+
 
 	@CircuitBreaker(name = "CircuitCreateStudent", fallbackMethod = "CreateStudentFallBack")
 	@PostMapping("/create")
@@ -84,7 +91,6 @@ public class CallerController {
 		return ResponseEntity.status(HttpStatus.ACCEPTED).body("Student creation initiated");
 	}
 
-	
 	@Retry(name = "CircuitgetStudent", fallbackMethod = "getStudentRetryFallBack")
 	@CircuitBreaker(name = "CircuitgetStudent", fallbackMethod = "getStudentFallBack")
 	@GetMapping("/getStudent/{id}")
@@ -140,9 +146,8 @@ public class CallerController {
 			var completedStudent = student.withStatus("COMPLETED");
 			redisService.set(redisKey, completedStudent, 300L);
 		}
-		case "STUDENT_CREATION_FAILED" -> {
-			log.warn("Saga Failed: Compensating transaction for student uUID", event.uuid());
-		}
+		case "STUDENT_CREATION_FAILED" ->
+			log.warn("Saga Failed. Compensating transaction correlationId: {}", event.correlationId());
 		default -> log.warn("Unknown event type received: {}", event.eventType());
 		}
 	}
@@ -177,7 +182,7 @@ public class CallerController {
 	@GetMapping("/reactive/getStudent/{id}")
 	public Mono<ResponseEntity<Student>> getStudentReactive(@PathVariable int id) {
 		log.info("Initiating reactive WebClient call for student {}", id);
-		
+
 		return webClient.get().uri("/reactive/getStudents/{id}", id).retrieve().toEntity(Student.class)
 				.doOnSuccess(response -> log.info("Successfully fetched student {} reactively", id))
 				.onErrorResume(e -> {

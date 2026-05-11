@@ -1,4 +1,4 @@
-import { Component, AfterViewInit, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../auth.service';
 
@@ -7,13 +7,12 @@ import { AuthService } from '../auth.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './login.component.html',
-  styleUrl: './login.component.scss' ,
+  styleUrl: './login.component.scss',
 })
-export class LoginComponent implements AfterViewInit {
+export class LoginComponent {
+  // ✅ FIX: Removed AfterViewInit + initializeGoogleAuth() call.
+  //    The old code called initializeGoogleAuth() in AfterViewInit which
+  //    immediately redirected to Google before the user clicked anything.
+  //    Now login is purely driven by the (click) binding in the template.
   public authService = inject(AuthService);
-
-  ngAfterViewInit(): void {
-    // We call this in AfterViewInit to ensure the #google-btn div exists in the DOM
-    this.authService.initializeGoogleAuth('google-btn');
-  }
 }

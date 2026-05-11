@@ -10,6 +10,12 @@ import { join } from 'node:path';
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
+app.use((req, res, next) => {
+  // Allow Google Sign-In FedCM to work with postMessage
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
 const angularApp = new AngularNodeAppEngine();
 
 /**

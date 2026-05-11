@@ -1,0 +1,23 @@
+app:
+  jwt:
+    secret: 1234567890123456789012345678901234567890123456789012345678901234
+    expiry-minutes: 60
+  frontend:
+    url: http://localhost:4200
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+logging:
+  level:
+    in:
+      co: DEBUG
+    org:
+      springframework:
+        security: DEBUG
+
+CALLER_SERVER_SVC: localhost
+RESPONSE_SERVER_SVC: localhost

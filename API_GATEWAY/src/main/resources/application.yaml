@@ -7,10 +7,17 @@ spring:
 
   security:
     oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://accounts.google.com
-  
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: openid, email, profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/google"
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
+
   cloud:
     gateway:
       server:
@@ -25,27 +32,17 @@ spring:
               predicates:
                 - Path=/response/**
 
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:5432/postgresjpa
-    username: postgres
-    password: root
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      connection-timeout: 30000
-      idle-timeout: 600000
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-
-  cache:
-    type: simple
-
   data:
-    jpa:
-      repositories:
-        bootstrap-mode: deferred
+    redis:
+      host: localhost
+      port: 6379
+
+app:
+  jwt:
+    secret: 1234567890123456789012345678901234567890123456789012345678901234
+    expiry-minutes: 60
+  frontend:
+    url: http://localhost:4200
 
 management:
   endpoints:
@@ -61,9 +58,7 @@ management:
 logging:
   level:
     in:
-      co: INFO
+      co: DEBUG
     org:
       springframework:
-        security: WARN
-  # No logging.pattern.* block needed — logback-spring.xml handles all
-  # JSON formatting via LogstashEncoder.
+        security: DEBUG

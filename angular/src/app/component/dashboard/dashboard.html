@@ -1,6 +1,8 @@
+<!-- src/app/component/dashboard/dashboard.html -->
 <div class="dashboard-container">
   <h2>Secure Dashboard</h2>
 
+  <!-- Existing Create Form -->
   <div class="form-container">
     <h3>Add New Student</h3>
     <div class="form-group">
@@ -10,29 +12,50 @@
     </div>
   </div>
 
+  <!-- NEW: Search Section -->
+  <div class="form-container">
+    <h3>Search Students</h3>
+    <div class="form-group">
+      <input type="text" [formControl]="searchControl" placeholder="Search by name or course..." class="search-input"
+        style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;" />
+    </div>
+
+    <div *ngIf="isSearching" style="color: #0056b3; margin-top: 10px;">
+      <span>Searching...</span>
+    </div>
+
+    <!-- Search Results -->
+    <div *ngIf="filteredStudents.length > 0" class="response-box success">
+      <h3>Search Results</h3>
+      <pre>{{ filteredStudents | json }}</pre>
+    </div>
+
+    <div *ngIf="searchControl.value && !isSearching && filteredStudents.length === 0"
+      style="margin-top: 10px; color: #721c24;">
+      No matching records found.
+    </div>
+  </div>
+
   <hr />
 
+  <!-- Existing Action Buttons -->
   <div class="actions">
-    <button (click)="fetchData()" class="btn-primary">
-      Call Angular API
-    </button>
-
     <button (click)="getAllStudents()" class="btn-primary">
       Get All Students
     </button>
-
     <button (click)="authService.logout()" class="btn-danger">
       Logout
     </button>
   </div>
 
+  <!-- Existing Raw JSON Outputs -->
   <div *ngIf="apiResponse" class="response-box success">
-    <h3>Gateway Response:</h3>
+    <h3>Gateway Response</h3>
     <pre>{{ apiResponse | json }}</pre>
   </div>
 
   <div *ngIf="errorMessage" class="response-box error">
-    <h3>Error:</h3>
+    <h3>Error</h3>
     <p>{{ errorMessage }}</p>
   </div>
 </div>

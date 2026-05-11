@@ -42,7 +42,9 @@ public class StudentService {
 
 	@Transactional
 	public Student createStudentAndOutboxEvent(Student student, String correlationId) {
+		student.setCorrelationId(correlationId);
 		student.setStatus("COMPLETED");
+
 		Student savedStudent = repository.save(student);
 
 		try {
@@ -50,15 +52,10 @@ public class StudentService {
 			String payload = objectMapper.writeValueAsString(successEvent);
 
 			OutboxEvent outboxEvent = new OutboxEvent(String.valueOf(savedStudent.getId()), "STUDENT_CREATED", payload);
-
 			outboxEvent.setStatus("PENDING");
-			outboxEvent.setRetryCount(0);
-			outboxEvent.setPublishedAt(null);
-			outboxEvent.setLastError(null);
-
 			outboxRepository.save(outboxEvent);
-			return savedStudent;
 
+			return savedStudent;
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to serialize Outbox Event", e);
 		}

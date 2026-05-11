@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.annotation.BackOff;
@@ -32,7 +34,9 @@ public class ResponseController {
 	private static final Logger log = LoggerFactory.getLogger(ResponseController.class);
 
 	private final StudentService service;
-	private final KafkaTemplate<String, StudentEvent> kafkaTemplate;
+	@Autowired
+	@Qualifier("studentEventKafkaTemplate")
+	private KafkaTemplate<String, StudentEvent> kafkaTemplate;
 	private final StudentService studentService;
 	private final IdempotencyService idempotencyService;
 
@@ -64,7 +68,7 @@ public class ResponseController {
 	@RetryableTopic(attempts = "4", backOff = @BackOff(delay = 1000, multiplier = 1.5, maxDelay = 15000))
 	@KafkaListener(topics = "student-create-commands", groupId = "response-service-group")
 	public void processCreateStudentCommand(StudentEvent commandEvent) {
-		String correlationId = commandEvent.uUID();
+		String correlationId = commandEvent.correlationId();
 		Student student = commandEvent.student();
 
 		if (!idempotencyService.claim(correlationId)) {
@@ -96,7 +100,7 @@ public class ResponseController {
 	public void handleDlt(StudentEvent commandEvent, @Header(KafkaHeaders.RECEIVED_TOPIC) String originalTopic,
 			@Header(name = KafkaHeaders.EXCEPTION_MESSAGE, required = false) String errorMessage) {
 
-		String correlationId = commandEvent.uUID();
+		String correlationId = commandEvent.correlationId();
 		var student = commandEvent.student();
 
 		log.error("DLT Triggered: All retries exhausted for CorrelationId: {} from topic: {}. Error: {}", correlationId,

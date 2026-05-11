@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,7 +24,10 @@ public class OutboxRelayScheduler {
 	private static final int MAX_RETRY_COUNT = 5;
 
 	private final OutboxEventRepository outboxRepository;
-	private final KafkaTemplate<String, String> kafkaTemplate;
+	// In OutboxRelayScheduler — inject by name
+	@Autowired
+	@Qualifier("outboxKafkaTemplate")
+	private KafkaTemplate<String, String> kafkaTemplate;
 
 	public OutboxRelayScheduler(OutboxEventRepository outboxRepository, KafkaTemplate<String, String> kafkaTemplate) {
 		this.outboxRepository = outboxRepository;

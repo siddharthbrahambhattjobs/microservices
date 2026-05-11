@@ -1,18 +1,15 @@
 package in.co.dto;
 
-import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-// A Record automatically provides constructors, getters (e.g., student()), equals, hashCode, and toString.
-public record StudentEvent(String uUID, String eventType, Student student, String eventId) {
-	// Compact constructor to handle default values
-	public StudentEvent {
-		if (uUID == null) {
-			uUID = UUID.randomUUID().toString();
-		}
+@JsonIgnoreProperties(ignoreUnknown = true) // ✅ tolerates extra fields during evolution
+public record StudentEvent(String correlationId, String eventType, Student student, String eventId) {
+
+	// ✅ Convenience constructor — eventId optional (Caller uses this)
+	public StudentEvent(String correlationId, String eventType, Student student) {
+		this(correlationId, eventType, student, null);
 	}
 
-	// Overloaded constructor to match your previous usage (omitting eventId)
-	public StudentEvent(String uUID, String eventType, Student student) {
-		this(uUID, eventType, student, null);
-	}
+	// ✅ Jackson needs this for deserialization of records
+	// No-arg constructor not needed — Jackson handles records natively in Java 16+
 }

@@ -1,53 +1,49 @@
 package in.co.service;
 
-import in.co.dto.AppUser;
-import in.co.repository.UserRepository;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 public class CustomUserService {
 
-    // ✅ SLF4J logger — never use System.out.println in production code
-    private static final Logger log = LoggerFactory.getLogger(CustomUserService.class);
+	private static final Logger log = LoggerFactory.getLogger(CustomUserService.class);
 
-    private final UserRepository userRepository;
+	/**
+	 * Extracts authorities from JWT claims. No DB call — roles come directly from
+	 * the token claims.
+	 *
+	 * Works for TWO token types: 1. Google JWT — no 'roles' claim → defaults to
+	 * ROLE_USER 2. Your own JWT — has 'roles' claim → reads it directly
+	 */
+	public List<GrantedAuthority> processOAuth2User(String email, String name) {
+		if (email == null || email.isBlank()) {
+			log.warn("JWT missing email claim — rejecting");
+			throw new IllegalArgumentException("JWT must contain a valid email claim");
+		}
+		log.debug("Resolved authority: email={}, role=ROLE_USER", email);
 
-    public CustomUserService(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
+		// Default role — all authenticated Google users are ROLE_USER
+		// To support ROLE_ADMIN: store privileged emails in application.yaml
+		// and check here: adminEmails.contains(email) ? ROLE_ADMIN : ROLE_USER
+		return List.of(new SimpleGrantedAuthority("ROLE_USER"));
+	}
 
-    /**
-     * Syncs the Google OAuth2 user with the local database and returns their authorities.
-     * Called on every authenticated request — result is cached by email to avoid
-     * a DB round-trip on each API call.
-     */
-    @Cacheable(value = "userAuthorities", key = "#email")  // ✅ Cache per email
-    @Transactional
-    public List<GrantedAuthority> processOAuth2User(String email, String name) {
+	/**
+	 * Used by JwtAuthenticationConverter for YOUR OWN issued JWTs. Reads the
+	 * 'roles' claim you put in during OAuth2SuccessHandler.
+	 */
+	public List<GrantedAuthority> extractAuthoritiesFromClaims(List<String> roles, String email) {
 
-        // ✅ Guard against null/blank claims from malformed tokens
-        if (email == null || email.isBlank()) {
-            log.warn("Received JWT with missing email claim — rejecting");
-            throw new IllegalArgumentException("JWT must contain a valid email claim");
-        }
+		if (roles == null || roles.isEmpty()) {
+			log.debug("No roles claim in JWT for email={}, defaulting to ROLE_USER", email);
+			return List.of(new SimpleGrantedAuthority("ROLE_USER"));
+		}
 
-        AppUser user = userRepository.findByEmail(email).orElseGet(() -> {
-            // ✅ Structured log with context — easy to find in Kibana/Elasticsearch
-            log.info("First login — provisioning new user: email={}", email);
-            return userRepository.save(new AppUser(email, name, AppUser.Role.ROLE_USER));
-        });
-
-        log.debug("Resolved authorities for user: email={}, role={}", email, user.getRole());
-
-        // ✅ Use enum name() — type-safe, no hardcoded strings
-        return List.of(new SimpleGrantedAuthority(user.getRole().name()));
-    }
+		return roles.stream().map(SimpleGrantedAuthority::new).map(a -> (GrantedAuthority) a).toList();
+	}
 }
